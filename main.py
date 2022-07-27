@@ -1,6 +1,7 @@
 import json
 import fastapi
-from fastapi import FastAPI, Depends, Request
+from fastapi import FastAPI, Depends, Form, Request, UploadFile
+from sqlalchemy import desc
 from tortoise.contrib.fastapi import register_tortoise
 from authentication import *
 from models import *
@@ -80,13 +81,15 @@ async def addCategory(request: Request, user:user_pydanticIn = Depends(get_curre
     json_data = json.loads(str(data, encoding='utf-8'))
     if json_data["parent"] == "None":
         query = f'INSERT INTO category (name, slug, description, parent_cat_id) VALUES ("{json_data["name"]}", "{json_data["slug"]}", "{json_data["description"]}", null);'
+        await conn.execute_query(query)
     else:
         parent_cat = json_data["parent"]
         print(parent_cat)
         get_query = f'Select id from category where name = "{parent_cat}"'
         parent = await conn.execute_query(get_query)
-        create_query = query = f'INSERT INTO category (name, slug, description, parent_cat_id) VALUES ("{json_data["name"]}", "{json_data["slug"]}", "{json_data["description"]}", "{parent[0]}");'
-            
+        create_query = f'INSERT INTO category (name, slug, description, parent_cat_id) VALUES ("{json_data["name"]}", "{json_data["slug"]}", "{json_data["description"]}", "{parent[0]}");'
+        await conn.execute_query(create_query)  
+        
 
 @app.get('/get_categories')
 async def getCategories(user:user_pydanticIn = Depends(get_current_user)):
@@ -96,6 +99,19 @@ async def getCategories(user:user_pydanticIn = Depends(get_current_user)):
         "status":"ok",
         "value": json.dumps(val),
     }
+
+
+@app.post('/add_product')
+async def addProduct( file: UploadFile, name:str = Form(default="None"), price:float = Form(default=0.0),
+ slug:str = Form(""), quantity:float = Form(default=0), color:str = Form(""),
+ size:str = Form(""), category:str = Form(""), description:str = Form(""), user:user_pydanticIn=Depends(get_current_user)):
+    print(file.filename)
+    print(name, price, slug, quantity, color, size, category, description)
+    file_location = f"files/{file.filename}"
+    with open(file_location, "wb+") as file_object:
+        file_object.write(file.file.read())
+    return {"info": f"file '{file.filename}' saved at '{file_location}'"}
+
 
 
 
